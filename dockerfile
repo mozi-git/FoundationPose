@@ -38,7 +38,7 @@ RUN cd / && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-L
     /opt/conda/bin/conda create -n my python=3.8 -y
 
 
-ENV PATH $PATH:/opt/conda/envs/my/bin
+ENV PATH="${PATH}:/opt/conda/envs/my/bin"
 
 RUN conda init bash &&\
     echo "conda activate my" >> ~/.bashrc &&\
@@ -51,7 +51,7 @@ RUN conda activate my &&\
     pip install --no-cache-dir kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.0.0_cu118.html
 
 RUN cd / && git clone https://github.com/NVlabs/nvdiffrast &&\
-    conda activate my && cd /nvdiffrast && pip install .
+    conda activate my && cd /nvdiffrast && pip install --no-build-isolation .
 
 ENV OPENCV_IO_ENABLE_OPENEXR=1
 
