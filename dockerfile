@@ -1,80 +1,64 @@
 FROM nvidia/cuda:11.8.0-devel-ubuntu20.04
 
-ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=US/Pacific
-ENV CONDA_DIR=/opt/conda
-ENV CONDA_ENV=foundationpose
-ENV PATH="${CONDA_DIR}/envs/${CONDA_ENV}/bin:${CONDA_DIR}/bin:${PATH}"
-ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9+PTX"
-ENV OPENCV_IO_ENABLE_OPENEXR=1
-ENV SHELL=/bin/bash
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update --fix-missing && \
+    apt-get install -y libgtk2.0-dev && \
+    apt-get install -y wget bzip2 ca-certificates curl git vim tmux g++ gcc build-essential cmake checkinstall gfortran libjpeg8-dev libtiff5-dev pkg-config yasm libavcodec-dev libavformat-dev libswscale-dev libdc1394-22-dev libxine2-dev libv4l-dev qt5-default libgtk2.0-dev libtbb-dev libatlas-base-dev libfaac-dev libmp3lame-dev libtheora-dev libvorbis-dev libxvidcore-dev libopencore-amrnb-dev libopencore-amrwb-dev x264 v4l-utils libprotobuf-dev protobuf-compiler libgoogle-glog-dev libgflags-dev libgphoto2-dev libhdf5-dev doxygen libflann-dev libboost-all-dev proj-data libproj-dev libyaml-cpp-dev cmake-curses-gui libzmq3-dev freeglut3-dev
+
+
+RUN cd / && git clone https://github.com/pybind/pybind11 &&\
+    cd pybind11 && git checkout v2.10.0 &&\
+    mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DPYBIND11_INSTALL=ON -DPYBIND11_TEST=OFF &&\
+    make -j6 && make install
+
+
+RUN cd / && wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz &&\
+    tar xvzf ./eigen-3.4.0.tar.gz &&\
+    cd eigen-3.4.0 &&\
+    mkdir build &&\
+    cd build &&\
+    cmake .. &&\
+    make install
 
 SHELL ["/bin/bash", "--login", "-c"]
 
-RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
+RUN cd / && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /miniconda.sh && \
+    /bin/bash /miniconda.sh -b -p /opt/conda &&\
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh &&\
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc &&\
+    /bin/bash -c "source ~/.bashrc" && \
+    # 新增：接受Anaconda官方源的服务条款（关键修复）
+    /opt/conda/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    /opt/conda/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r && \
+    # 更新conda
+    /opt/conda/bin/conda update -n base -c defaults conda -y &&\
+    # 创建python环境
+    /opt/conda/bin/conda create -n my python=3.8 -y
 
-RUN apt-get update --fix-missing && \
-    apt-get install -y --no-install-recommends \
-        bash \
-        bzip2 \
-        ca-certificates \
-        cmake \
-        curl \
-        g++ \
-        gcc \
-        git \
-        libboost-all-dev \
-        libegl1 \
-        libeigen3-dev \
-        libgl1 \
-        libglib2.0-0 \
-        libgles2 \
-        libglvnd0 \
-        libgtk2.0-dev \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        make \
-        ninja-build \
-        pkg-config \
-        unzip \
-        vim \
-        wget && \
-    rm -rf /var/lib/apt/lists/*
 
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
-    /bin/bash /tmp/miniconda.sh -b -p ${CONDA_DIR} && \
-    rm /tmp/miniconda.sh && \
-    ln -s ${CONDA_DIR}/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    (${CONDA_DIR}/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main || true) && \
-    (${CONDA_DIR}/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true) && \
-    ${CONDA_DIR}/bin/conda update -n base -c defaults conda -y && \
-    ${CONDA_DIR}/bin/conda create -n ${CONDA_ENV} python=3.9 -y && \
-    ${CONDA_DIR}/bin/conda clean -afy
+ENV PATH="${PATH}:/opt/conda/envs/my/bin"
 
-WORKDIR /workspace/FoundationPose
-COPY . /workspace/FoundationPose
+RUN conda init bash &&\
+    echo "conda activate my" >> ~/.bashrc &&\
+    conda activate my &&\
+    pip install torch==2.0.0+cu118 torchvision==0.15.1+cu118 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118 &&\
+    pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable" &&\
+    pip install scipy joblib scikit-learn ruamel.yaml trimesh pyyaml opencv-python imageio open3d transformations warp-lang einops kornia pyrender ninja
 
-RUN source ${CONDA_DIR}/etc/profile.d/conda.sh && \
-    conda activate ${CONDA_ENV} && \
-    conda install -y -c conda-forge eigen=3.4.0 && \
-    ln -sfn ${CONDA_PREFIX}/include/eigen3 /usr/local/include/eigen3 && \
-    python -m pip install --upgrade pip setuptools wheel && \
-    python -m pip install --no-cache-dir -r requirements.txt && \
-    conda clean -afy
+RUN conda activate my &&\
+    pip install --no-cache-dir kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.0.0_cu118.html
 
-RUN source ${CONDA_DIR}/etc/profile.d/conda.sh && \
-    conda activate ${CONDA_ENV} && \
-    python -m pip install --quiet --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git && \
-    python -m pip install --quiet --no-cache-dir kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.0.0_cu118.html && \
-    python -m pip install --quiet --no-index --no-cache-dir pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py39_cu118_pyt200/download.html
+# RUN cd / && git clone https://github.com/NVlabs/nvdiffrast &&\
+#     conda activate my && cd /nvdiffrast && pip install --no-build-isolation .
 
-RUN source ${CONDA_DIR}/etc/profile.d/conda.sh && \
-    conda activate ${CONDA_ENV} && \
-    CMAKE_PREFIX_PATH=${CONDA_PREFIX}/lib/python3.9/site-packages/pybind11/share/cmake/pybind11 bash build_all_conda.sh
+ENV OPENCV_IO_ENABLE_OPENEXR=1
 
-RUN echo "conda activate ${CONDA_ENV}" >> ~/.bashrc && \
-    ln -sf /bin/bash /bin/sh
+RUN conda activate my &&\
+    pip install scikit-image meshcat webdataset omegaconf pypng roma seaborn opencv-contrib-python openpyxl wandb imgaug Ninja xlsxwriter timm albumentations xatlas rtree nodejs jupyterlab objaverse g4f ultralytics==8.0.120 pycocotools videoio numba &&\
+    conda install -y -c anaconda h5py
 
-CMD ["/bin/bash"]
+
+ENV SHELL=/bin/bash
+RUN ln -sf /bin/bash /bin/sh
