@@ -50,8 +50,8 @@ RUN conda init bash &&\
 RUN conda activate my &&\
     pip install --no-cache-dir kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.0.0_cu118.html
 
-RUN cd / && git clone https://github.com/NVlabs/nvdiffrast &&\
-    conda activate my && cd /nvdiffrast && pip install --no-build-isolation .
+# RUN cd / && git clone https://github.com/NVlabs/nvdiffrast &&\
+#     conda activate my && cd /nvdiffrast && pip install --no-build-isolation .
 
 ENV OPENCV_IO_ENABLE_OPENEXR=1
 
