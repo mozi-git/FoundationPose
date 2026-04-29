@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:11.3.0-devel-ubuntu20.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu20.04
 
 ENV TZ=US/Pacific
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
@@ -45,11 +45,10 @@ RUN conda init bash &&\
     conda activate my &&\
     pip install torch==2.0.0+cu118 torchvision==0.15.1+cu118 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118 &&\
     pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable" &&\
-    pip install scipy joblib scikit-learn ruamel.yaml trimesh pyyaml opencv-python imageio open3d transformations warp-lang einops kornia pyrender
+    pip install scipy joblib scikit-learn ruamel.yaml trimesh pyyaml opencv-python imageio open3d transformations warp-lang einops kornia pyrender ninja
 
-RUN cd / && git clone --recursive https://github.com/NVIDIAGameWorks/kaolin
-RUN conda activate my && cd /kaolin &&\
-    IGNORE_TORCH_VER=1 FORCE_CUDA=1 python setup.py develop
+RUN conda activate my &&\
+    pip install --no-cache-dir kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.0.0_cu118.html
 
 RUN cd / && git clone https://github.com/NVlabs/nvdiffrast &&\
     conda activate my && cd /nvdiffrast && pip install .
